@@ -4,9 +4,10 @@ const onFinished = require('on-finished');
 const bodyParser = require('body-parser');
 
 const path = require('path');
-const port = 3000;
 const fs = require('fs');
 const crypto = require('crypto');
+
+const PORT = 3000;
 
 const app = express();
 app.use(bodyParser.json());
@@ -145,6 +146,6 @@ app.post('/api/login', (req, res) => {
   res.status(401).send();
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Example app listening on port ${PORT}`);
 });
