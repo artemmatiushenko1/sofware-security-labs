@@ -1,5 +1,5 @@
 # Logs
-sessions.json
+*/sessions.json
 logs
 *.log
 npm-debug.log*
