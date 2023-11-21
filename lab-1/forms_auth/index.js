@@ -130,7 +130,7 @@ app.post('/api/login', (req, res) => {
   const { login, password } = req.body;
 
   const user = users.find((user) => {
-    if (user.login == login && user.password == password) {
+    if (user.login === login && user.password === password) {
       return true;
     }
     return false;
