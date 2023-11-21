@@ -1,4 +1,3 @@
-const uuid = require('uuid');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const onFinished = require('on-finished');
@@ -7,6 +6,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const port = 3000;
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 app.use(bodyParser.json());
@@ -50,7 +50,7 @@ class Session {
   }
 
   init(res) {
-    const sessionId = uuid.v4();
+    const sessionId = crypto.randomUUID();
     res.set('Set-Cookie', `${SESSION_KEY}=${sessionId}; HttpOnly`);
     this.set(sessionId);
 
