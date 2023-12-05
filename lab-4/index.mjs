@@ -1,20 +1,15 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { authMiddleware } from './auth.middleware.mjs';
 import { auth } from './auth0.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 const app = express();
 
+app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get('/', authMiddleware, (req, res) => {
+app.get('/api/current-user', authMiddleware, (req, res) => {
   if (req.user) {
     return res.json({
       username: req.user.name,
@@ -22,7 +17,7 @@ app.get('/', authMiddleware, (req, res) => {
     });
   }
 
-  res.sendFile(path.join(__dirname + '/index.html'));
+  return res.status(401).send();
 });
 
 app.get('/logout', (req, res) => {
@@ -44,6 +39,23 @@ app.post('/api/login', async (req, res) => {
       token: tokens.access_token,
       refreshToken: tokens.refresh_token,
     });
+  } catch {
+    return res.status(401).send();
+  }
+});
+
+app.post('/api/register', async (req, res) => {
+  const { email, password, name } = req.body;
+
+  try {
+    const result = await auth.database.signUp({
+      password,
+      email,
+      name,
+      connection: 'Username-Password-Authentication',
+    });
+
+    console.log({ result });
   } catch {
     return res.status(401).send();
   }
