@@ -29,7 +29,7 @@
           placeholder="Username"
         />
         <input
-          type="password"
+          type="text"
           name="password"
           id="password-field"
           class="login-form-field"
@@ -175,7 +175,7 @@
 
     logoutLink.addEventListener('click', (e) => {
       e.preventDefault();
-      sessionStorage.removeItem('session');
+      sessionStorage.removeItem(SESSION_KEY);
       location.reload();
     });
 
@@ -194,7 +194,7 @@
       })
         .then((response) => {
           const { username } = response.data;
-          sessionStorage.setItem('session', JSON.stringify(response.data));
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(response.data));
           location.reload();
         })
         .catch((response) => {
