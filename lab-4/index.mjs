@@ -2,10 +2,28 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { authMiddleware } from './auth.middleware.mjs';
 import { auth } from './auth0.mjs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const app = express();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+app.get('/login', (req, res) => {
+  res.sendFile(__dirname + '/public/login.html');
+});
+
+app.get('/register', (req, res) => {
+  res.sendFile(__dirname + '/public/register.html');
+});
+
+app.get('/', (req, res) => {
+  return res.sendFile(__dirname + '/public/index.html');
+});
+
 app.use(express.static('public'));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -25,12 +43,12 @@ app.get('/logout', (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-  const { login, password } = req.body;
+  const { email, password } = req.body;
 
   try {
     const { data: tokens } = await auth.oauth.passwordGrant({
       password,
-      username: login,
+      username: email,
       audience: process.env.AUDIENCE,
       scope: 'offline_access',
     });
@@ -45,19 +63,28 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password } = req.body;
 
   try {
-    const result = await auth.database.signUp({
+    await auth.database.signUp({
       password,
       email,
-      name,
       connection: 'Username-Password-Authentication',
     });
 
-    console.log({ result });
-  } catch {
-    return res.status(401).send();
+    const { data: tokens } = await auth.oauth.passwordGrant({
+      password,
+      username: email,
+      audience: process.env.AUDIENCE,
+      scope: 'offline_access',
+    });
+
+    return res.json({
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+  } catch (err) {
+    return res.status(403).send({ message: err.message });
   }
 });
 

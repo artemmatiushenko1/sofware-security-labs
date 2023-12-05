@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./register.js"></script>
+  </head>
+
+  <body>
+    <main id="main-holder">
+      <h1 id="header">Register</h1>
+
+      <div id="error-msg-holder">
+        <p id="error-msg"></p>
+      </div>
+
+      <form id="form" action="/api/register" method="post">
+        <input
+          type="email"
+          name="email"
+          id="email-field"
+          class="form-field"
+          placeholder="Email"
+        />
+        <input
+          type="text"
+          name="password"
+          id="password-field"
+          class="form-field"
+          placeholder="Password"
+        />
+        <input type="submit" value="Register" id="form-submit" />
+        <p>
+          Already have an account?
+          <a href="/login"> Login </a>
+        </p>
+      </form>
+    </main>
+  </body>
+</html>

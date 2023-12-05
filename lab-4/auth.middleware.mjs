@@ -12,21 +12,10 @@ const authMiddleware = async (req, res, next) => {
 
   try {
     const { sub: userId } = (await verifyToken(authToken)) ?? {};
-
-    if (!userId) {
-      return res.status(401).send();
-    }
-
     const { data: user } = await management.users.get({ id: userId });
 
-    if (!user) {
-      return res.status(401).send();
-    }
-
     req.user = user;
-  } catch (err) {
-    return res.status(401).send();
-  }
+  } catch (err) {}
 
   return next();
 };
