@@ -147,7 +147,8 @@
           },
         })
         .then((response) => {
-          const { username } = response.data;
+          const { username, tokenIsValidUntil, tokenExpirationTime } =
+            response.data;
 
           if (username) {
             const mainHolder = document.getElementById('main-holder');
@@ -158,6 +159,14 @@
             loginHeader.remove();
 
             mainHolder.append(`Hello ${username}`);
+            mainHolder.append(document.createElement('br'));
+            mainHolder.append(
+              `Access Token is valid until: ${tokenIsValidUntil}`
+            );
+            mainHolder.append(document.createElement('br'));
+            mainHolder.append(
+              `Token exp time: ${tokenExpirationTime / 3600}hr`
+            );
             logoutLink.style.opacity = 1;
           }
         })

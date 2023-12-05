@@ -34,6 +34,10 @@ app.use((req, res, next) => {
     }
 
     req.user = user;
+    const [_, tokenPayloadBase64] = authToken.split('.');
+    const tokenPayloadDecoded = JSON.parse(atob(tokenPayloadBase64));
+    req.tokenIsValidUntil = new Date(tokenPayloadDecoded.exp * 1000).toString();
+    req.tokenExpirationTime = tokenPayloadDecoded.exp - tokenPayloadDecoded.iat;
   } catch {
     return res.status(401).send();
   }
@@ -45,6 +49,8 @@ app.get('/', (req, res) => {
   if (req.user) {
     return res.json({
       username: req.user.username,
+      tokenIsValidUntil: req.tokenIsValidUntil,
+      tokenExpirationTime: req.tokenExpirationTime,
       logout: 'http://localhost:3000/logout',
     });
   }
