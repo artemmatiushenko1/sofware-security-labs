@@ -129,7 +129,9 @@
   </style>
 
   <script>
-    const session = sessionStorage.getItem('session');
+    const SESSION_KEY = 'session';
+
+    const session = sessionStorage.getItem(SESSION_KEY);
 
     let token;
 
@@ -157,6 +159,11 @@
 
             mainHolder.append(`Hello ${username}`);
             logoutLink.style.opacity = 1;
+          }
+        })
+        .catch((err) => {
+          if (err.response.status === 401) {
+            sessionStorage.removeItem(SESSION_KEY);
           }
         });
     }
