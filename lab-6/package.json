@@ -1,0 +1,19 @@
+{
+  "name": "token_auth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env --watch index.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "auth0": "^4.1.0",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "express-oauth2-jwt-bearer": "^1.6.0"
+  }
+}
