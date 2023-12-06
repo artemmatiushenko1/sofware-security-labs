@@ -12,21 +12,52 @@ try {
   if (!token) {
     location.replace('/login');
   }
-} catch (e) {}
+} catch (e) {
+  sessionStorage.removeItem(SESSION_KEY);
+  location.replace('/login');
+}
 
 const loadingEl = document.createElement('div');
 loadingEl.textContent = 'Loading...';
+
+const wait = () => new Promise((resolve) => setTimeout(() => resolve(), 10000));
+
+const refreshAccessToken = () =>
+  new Promise(async (resolve) => {
+    try {
+      const refreshToken = JSON.parse(session)?.refreshToken;
+      if (!refreshToken) {
+        return resolve(false);
+      }
+
+      const { data: tokens } = await axios({
+        method: 'POST',
+        url: '/api/refresh',
+        data: {
+          refreshToken,
+        },
+      });
+
+      await wait();
+
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(tokens));
+      return resolve(true);
+    } catch (err) {
+      return resolve(false);
+    }
+  });
 
 if (token) {
   const mainHolder = document.getElementById('main-holder');
   mainHolder.appendChild(loadingEl);
 
-  axios
-    .get('/api/current-user', {
-      headers: {
-        Authorization: token,
-      },
-    })
+  axios({
+    method: 'GET',
+    url: '/api/current-user',
+    headers: {
+      Authorization: token,
+    },
+  })
     .then((response) => {
       const { username } = response.data;
 
@@ -36,10 +67,16 @@ if (token) {
         logoutLink.style.opacity = 1;
       }
     })
-    .catch((err) => {
+    .catch(async (err) => {
       if (err.response?.status === 401) {
-        sessionStorage.removeItem(SESSION_KEY);
-        location.replace('/login');
+        const hasRefreshedToken = await refreshAccessToken();
+
+        if (hasRefreshedToken) {
+          location.reload();
+        } else {
+          sessionStorage.removeItem(SESSION_KEY);
+          location.replace('/login');
+        }
       }
     });
 }
