@@ -51,6 +51,13 @@ if (token) {
   const mainHolder = document.getElementById('main-holder');
   mainHolder.appendChild(loadingEl);
 
+  const [, tokenPayloadBase64] = token.split('.');
+  const decodedJsonPayload = atob(tokenPayloadBase64);
+  const tokenPayload = JSON.parse(decodedJsonPayload);
+  const tokenExpTimeMs = tokenPayload.exp * 1000;
+  const currentTimeMs = Date.now();
+  const tokenTimeLeftHr = (tokenExpTimeMs - currentTimeMs) / (1000 * 60 * 60);
+
   axios({
     method: 'GET',
     url: '/api/current-user',
@@ -64,6 +71,12 @@ if (token) {
       if (username) {
         mainHolder.removeChild(loadingEl);
         mainHolder.append(`Hello ${username}`);
+        mainHolder.append(document.createElement('br'));
+        const timeLeftElement = document.createElement('div');
+        timeLeftElement.innerText = `Access token will be valid for ${tokenTimeLeftHr.toFixed(
+          2
+        )} hours since now`;
+        mainHolder.append(timeLeftElement);
         logoutLink.style.opacity = 1;
       }
     })
