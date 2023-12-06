@@ -1,22 +1,27 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import { auth } from './auth0.mjs';
+import openidConnect from 'express-openid-connect';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { HTTP_CODE } from './constants.mjs';
-import { authMiddleware } from './auth.middleware.mjs';
-
-const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-app.get('/login', (_, res) => {
-  res.sendFile(__dirname + '/public/login.html');
-});
+const app = express();
 
-app.get('/register', (_, res) => {
-  res.sendFile(__dirname + '/public/register.html');
+const config = {
+  authRequired: false,
+  auth0Logout: true,
+  baseURL: `http://localhost:${process.env.APP_PORT}`,
+  clientID: process.env.CLIENT_ID,
+  issuerBaseURL: `https://${process.env.DOMAIN}`,
+  secret: process.env.CLIENT_SECRET,
+};
+
+app.use(openidConnect.auth(config));
+
+app.get('/', openidConnect.requiresAuth(), (_, res) => {
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 app.use(express.static('public'));
@@ -24,78 +29,16 @@ app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get('/logout', (_, res) => {
-  res.redirect('/');
-});
+app.get('/api/current-user', openidConnect.requiresAuth(), async (req, res) => {
+  console.log(req.oidc.user);
+  const { user } = req.oidc;
 
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const { data: tokens } = await auth.oauth.passwordGrant({
-      password,
-      username: email,
-      audience: process.env.AUDIENCE,
-      scope: 'offline_access',
-    });
-
-    return res.json({
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-  } catch {
-    return res.status(HTTP_CODE.Unauthorized).send();
-  }
-});
-
-app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    await auth.database.signUp({
-      password,
-      email,
-      connection: 'Username-Password-Authentication',
-    });
-
-    const { data: tokens } = await auth.oauth.passwordGrant({
-      password,
-      username: email,
-      audience: process.env.AUDIENCE,
-      scope: 'offline_access',
-    });
-
-    return res.json({
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-  } catch (err) {
-    return res.status(HTTP_CODE.BadRequest).send({ message: err.message });
-  }
-});
-
-app.get('/api/current-user', authMiddleware, async (req, res) => {
   return res.json({
-    username: req.user.name,
+    username: user.name,
+    picture: user.picture,
+    email: user.email,
     logout: `http://localhost:${process.env.APP_PORT}/logout`,
   });
-});
-
-app.post('/api/refresh', async (req, res) => {
-  const { refreshToken } = req.body;
-
-  try {
-    const { data: tokens } = await auth.oauth.refreshTokenGrant({
-      refresh_token: refreshToken,
-    });
-
-    return res.json({
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-  } catch (err) {
-    return res.status(HTTP_CODE.Unauthorized).send();
-  }
 });
 
 app.listen(process.env.APP_PORT, () => {

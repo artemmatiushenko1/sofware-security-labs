@@ -12,10 +12,6 @@ body {
   background-color: #3a3a3a;
 }
 
-#logout {
-  opacity: 0;
-}
-
 #main-holder {
   width: 50%;
   height: 70%;
