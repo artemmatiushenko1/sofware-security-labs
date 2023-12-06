@@ -1,10 +1,10 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import { authMiddleware } from './auth.middleware.mjs';
 import { auth } from './auth0.mjs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { HTTP_CODE } from './constants.mjs';
+import { authMiddleware } from './auth.middleware.mjs';
 
 const app = express();
 
@@ -74,15 +74,11 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.get('/api/current-user', authMiddleware, (req, res) => {
-  if (req.user) {
-    return res.json({
-      username: req.user.name,
-      logout: `http://localhost:${process.env.APP_PORT}/logout`,
-    });
-  }
-
-  return res.status(HTTP_CODE.Unauthorized).send();
+app.get('/api/current-user', authMiddleware, async (req, res) => {
+  return res.json({
+    username: req.user.name,
+    logout: `http://localhost:${process.env.APP_PORT}/logout`,
+  });
 });
 
 app.post('/api/refresh', async (req, res) => {

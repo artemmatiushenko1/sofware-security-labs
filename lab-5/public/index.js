@@ -55,7 +55,7 @@ if (token) {
     method: 'GET',
     url: '/api/current-user',
     headers: {
-      Authorization: token,
+      Authorization: `Bearer ${token}`,
     },
   })
     .then((response) => {

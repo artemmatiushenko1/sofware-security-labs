@@ -1,16 +1,14 @@
-import { management } from './auth0.mjs';
-import { HTTP_CODE, SESSION_KEY } from './constants.mjs';
-import { verifyToken } from './verify-token.helper.mjs';
+import { auth0JwtValidator, management } from './auth0.mjs';
+import { HTTP_CODE } from './constants.mjs';
+import express from 'express';
 
-const authMiddleware = async (req, res, next) => {
-  const authToken = req.get(SESSION_KEY)?.split(' ').pop();
+const router = express.Router();
 
-  if (!authToken) {
-    return next();
-  }
-
+const userMiddleware = async (req, res, next) => {
   try {
-    const { sub: userId } = (await verifyToken(authToken)) ?? {};
+    console.log(req.auth);
+
+    const { sub: userId } = req.auth?.payload ?? {};
     const { data: user } = await management.users.get({ id: userId });
 
     if (!user) {
@@ -25,4 +23,7 @@ const authMiddleware = async (req, res, next) => {
   return next();
 };
 
-export { authMiddleware };
+router.use(auth0JwtValidator);
+router.use(userMiddleware);
+
+export { router as authMiddleware };

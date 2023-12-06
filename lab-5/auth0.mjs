@@ -1,4 +1,5 @@
 import { AuthenticationClient, ManagementClient } from 'auth0';
+import { auth as jwtValidator } from 'express-oauth2-jwt-bearer';
 
 const auth = new AuthenticationClient({
   domain: process.env.DOMAIN,
@@ -12,4 +13,9 @@ const management = new ManagementClient({
   clientSecret: process.env.CLIENT_SECRET,
 });
 
-export { auth, management };
+const auth0JwtValidator = jwtValidator({
+  issuerBaseURL: `https://${process.env.DOMAIN}`,
+  audience: process.env.AUDIENCE,
+});
+
+export { auth, management, auth0JwtValidator };
