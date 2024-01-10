@@ -5,6 +5,7 @@ import {
   decryptRecievedData,
   encryptDataForTransmission,
   generateRandomString,
+  log,
 } from './helpers.js';
 import { SERVER_PORT } from './constants.js';
 
@@ -16,6 +17,10 @@ const handleClientHello = (socket, clientRandomHello) => {
     publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
     privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
   });
+
+  log('Private / Public keys generated: ');
+  console.log(privateKey);
+  console.log(publicKey);
 
   const serverRandomHello = generateRandomString();
 
@@ -32,6 +37,10 @@ const handleClientHello = (socket, clientRandomHello) => {
       data: [serverRandomHello, publicKey],
     })
   );
+
+  log('Public key and random string sent: ');
+  console.log(publicKey);
+  console.log(serverRandomHello);
 };
 
 const handlePremasterSecretExchange = (socket, encryptedPremasterSecret) => {
@@ -51,11 +60,17 @@ const handlePremasterSecretExchange = (socket, encryptedPremasterSecret) => {
         )
         .toString();
 
+      log('Successfully decrypted client premaster secret: ');
+      console.log(premasterSecret);
+
       const encryptionKey = premasterSecret + clientRandomHello;
       const decryptionKey = premasterSecret + serverRandomHello;
       const sessionKeys = [encryptionKey, decryptionKey];
 
       Object.assign(sessions.get(socket), { premasterSecret, sessionKeys });
+
+      log('Session keys generated [encryptionKey, decryptionKey]: ');
+      console.log(sessionKeys);
 
       resolve(sessionKeys);
     } catch {
@@ -68,12 +83,20 @@ const handleServerReady = (socket) => {
   const { sessionKeys } = sessions.get(socket);
   const [encryptionKey] = sessionKeys;
 
+  const encryptedReadyMessage = encryptDataForTransmission(
+    'READY',
+    encryptionKey
+  );
+
   socket.write(
     JSON.stringify({
       action: Action.READY,
-      data: encryptDataForTransmission('READY', encryptionKey),
+      data: encryptedReadyMessage,
     })
   );
+
+  log('Encrypted server READY message sent: ');
+  console.log(encryptedReadyMessage);
 };
 
 const server = net.createServer(async (socket) => {
@@ -86,15 +109,36 @@ const server = net.createServer(async (socket) => {
         const handler = {
           [Action.HELLO]: () => {
             const clientRandomHello = jsonData.data;
+            log('Client HELLO recieved (random string attached): ');
+            console.log(clientRandomHello);
+
             handleClientHello(socket, clientRandomHello);
           },
           [Action.PREMASTER_SECRET_EXCHANGE]: () => {
             const premasterSecret = jsonData.data;
+            log('Client encrypted premaster secret recieved: ');
+            console.log(premasterSecret);
+
             handlePremasterSecretExchange(socket, premasterSecret)
               .then(() => handleServerReady(socket))
               .catch(() => resolve(false));
           },
           [Action.READY]: () => {
+            const encryptedClientReadyMessage = jsonData.data;
+            log('Encrypted client READY message recieved: ');
+            console.log(encryptedClientReadyMessage);
+
+            const { sessionKeys } = sessions.get(socket);
+            const [_, decryptionKey] = sessionKeys;
+
+            const decryptedClientReadyMessage = decryptRecievedData(
+              encryptedClientReadyMessage,
+              decryptionKey
+            );
+
+            log('Succefully decrypted client READY message: ');
+            console.log(decryptedClientReadyMessage);
+
             resolve(true);
             socket.removeListener('data', dataHandler);
           },
@@ -110,12 +154,31 @@ const server = net.createServer(async (socket) => {
   const hasConnected = await establishSecureConnection();
 
   if (hasConnected) {
+    log('Secure connection is successfully established! ✅');
+
     socket.on('data', (buffer) => {
       const { sessionKeys } = sessions.get(socket);
-      const [_, decryptionKey] = sessionKeys;
+      const [encryptionKey, decryptionKey] = sessionKeys;
 
-      console.log(decryptRecievedData(buffer.toString(), decryptionKey));
+      log(
+        `Recived client data through secure channel: ${decryptRecievedData(
+          buffer.toString(),
+          decryptionKey
+        )}`
+      );
+
+      const ecryptedData = encryptDataForTransmission(
+        'SOME TEST MESSAGE FOR TRANSMISSION FROM SERVER 👋',
+        encryptionKey
+      );
+
+      log('Sending data to client through secure channel: ');
+      console.log(ecryptedData);
+
+      socket.write(ecryptedData);
     });
+  } else {
+    log('Failed to establish secure connection! ⛔');
   }
 
   socket.on('end', () => {

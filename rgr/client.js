@@ -25,13 +25,13 @@ const handleServerHello = async (serverRandomHello, publicKey) => {
     )
     .toString('base64');
 
-  const sesstionKey = premasterSecret + serverRandomHello;
+  log('Premaster secret generated: ', premasterSecret);
+  console.log(premasterSecret);
 
   Object.assign(sessionData, {
     serverRandomHello,
     publicKey,
     premasterSecret,
-    sesstionKey,
   });
 
   client.write(
@@ -40,20 +40,39 @@ const handleServerHello = async (serverRandomHello, publicKey) => {
       data: premasterSecretEncrypted,
     })
   );
+
+  log('Encrypted premaster secret sent: ');
+  console.log(premasterSecretEncrypted);
+
+  const { clientRandomHello } = sessionData;
+
+  const encryptionKey = premasterSecret + serverRandomHello;
+  const decryptionKey = premasterSecret + clientRandomHello;
+  const sessionKeys = [encryptionKey, decryptionKey];
+
+  Object.assign(sessionData, { sessionKeys });
+  log('Session keys generated [encryptionKey, decryptionKey]: ');
+  console.log(sessionKeys);
 };
 
 const handleClientReady = (client) => {
-  const { premasterSecret, serverRandomHello } = sessionData;
-  const sessionKey = premasterSecret + serverRandomHello;
+  const { sessionKeys } = sessionData;
+  const [encryptionKey] = sessionKeys;
 
-  Object.assign(sessionData, { sessionKey });
+  const encryptedReadyMessage = encryptDataForTransmission(
+    'READY',
+    encryptionKey
+  );
 
   client.write(
     JSON.stringify({
       action: Action.READY,
-      data: encryptDataForTransmission('READY', sessionKey),
+      data: encryptedReadyMessage,
     })
   );
+
+  log('Encrypted client READY message sent');
+  console.log(encryptedReadyMessage);
 };
 
 const client = net.createConnection({ port: SERVER_PORT }, async () => {
@@ -66,6 +85,9 @@ const client = net.createConnection({ port: SERVER_PORT }, async () => {
     })
   );
 
+  log('Client HELLO sent (random string attached): ');
+  console.log(clientRandomHello);
+
   Object.assign(sessionData, { clientRandomHello });
 
   const establishSecureConnection = () => {
@@ -76,12 +98,35 @@ const client = net.createConnection({ port: SERVER_PORT }, async () => {
 
         const handler = {
           [Action.HELLO]: () => {
+            log(
+              'Server HELLO recieved (Public key and random string attached):'
+            );
+
             const [serverRandomHello, publicKey] = jsonData.data;
+
+            console.log(publicKey);
+            console.log(serverRandomHello);
+
             handleServerHello(serverRandomHello, publicKey).catch(() =>
               resolve(false)
             );
           },
           [Action.READY]: () => {
+            const encryptedServerReadyMessage = jsonData.data;
+            log('Encrypted server READY message recieved: ');
+            console.log(encryptedServerReadyMessage);
+
+            const { sessionKeys } = sessionData;
+            const [_, decryptionKey] = sessionKeys;
+
+            const decryptedServerReadyMessage = decryptRecievedData(
+              encryptedServerReadyMessage,
+              decryptionKey
+            );
+
+            log('Succefully decrypted server READY message: ');
+            console.log(decryptedServerReadyMessage);
+
             handleClientReady(client);
             client.removeListener('data', dataListener);
             resolve(true);
@@ -98,18 +143,31 @@ const client = net.createConnection({ port: SERVER_PORT }, async () => {
   const hasConnected = await establishSecureConnection();
 
   if (hasConnected) {
-    log('Secure connection is successfully established!');
+    log('Secure connection is successfully established! ✅');
+    const {
+      sessionKeys: [encryptionKey, decryptionKey],
+    } = sessionData;
 
-    const { premasterSecret, serverRandomHello } = sessionData;
+    client.on('data', (buffer) => {
+      log(
+        `Recived server data through secure channel: ${decryptRecievedData(
+          buffer.toString(),
+          decryptionKey
+        )}`
+      );
+    });
 
-    client.write(
-      encryptDataForTransmission(
-        'SOME DATA FOR TRANSMISSION',
-        premasterSecret + serverRandomHello
-      )
+    const ecryptedData = encryptDataForTransmission(
+      'SOME TEST MESSAGE FOR TRANSMISSION FROM CLIENT 👋',
+      encryptionKey
     );
+
+    log('Sending data to server through secure channel: ');
+    console.log(ecryptedData);
+
+    client.write(ecryptedData);
   } else {
-    log('Failed to establish secure connection!');
+    log('Failed to establish secure connection! ⛔');
   }
 });
 
