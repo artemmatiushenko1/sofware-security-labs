@@ -1,0 +1,5 @@
+const SERVER_PORT = 8000;
+
+const SYMMETRIC_ALGORITHM = 'aes-128-ecb';
+
+export { SERVER_PORT, SYMMETRIC_ALGORITHM };
