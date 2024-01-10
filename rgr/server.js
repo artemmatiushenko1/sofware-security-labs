@@ -1,7 +1,11 @@
 import net from 'net';
 import crypto from 'crypto';
 import { Action } from './action.js';
-import { encryptDataForTransmission, generateRandomString } from './helpers.js';
+import {
+  decryptRecievedData,
+  encryptDataForTransmission,
+  generateRandomString,
+} from './helpers.js';
 import { SERVER_PORT } from './constants.js';
 
 const sessions = new Map();
@@ -31,7 +35,8 @@ const handleClientHello = (socket, clientRandomHello) => {
 };
 
 const handlePremasterSecretExchange = (socket, encryptedPremasterSecret) => {
-  const { privateKey, clientRandomHello } = sessions.get(socket);
+  const { privateKey, clientRandomHello, serverRandomHello } =
+    sessions.get(socket);
 
   return new Promise((resolve, reject) => {
     try {
@@ -46,11 +51,13 @@ const handlePremasterSecretExchange = (socket, encryptedPremasterSecret) => {
         )
         .toString();
 
-      const sessionKey = premasterSecret + clientRandomHello;
+      const encryptionKey = premasterSecret + clientRandomHello;
+      const decryptionKey = premasterSecret + serverRandomHello;
+      const sessionKeys = [encryptionKey, decryptionKey];
 
-      Object.assign(sessions.get(socket), { premasterSecret, sessionKey });
+      Object.assign(sessions.get(socket), { premasterSecret, sessionKeys });
 
-      resolve(sessionKey);
+      resolve(sessionKeys);
     } catch {
       reject();
     }
@@ -58,49 +65,58 @@ const handlePremasterSecretExchange = (socket, encryptedPremasterSecret) => {
 };
 
 const handleServerReady = (socket) => {
-  const { sessionKey } = sessions.get(socket);
+  const { sessionKeys } = sessions.get(socket);
+  const [encryptionKey] = sessionKeys;
 
   socket.write(
     JSON.stringify({
       action: Action.READY,
-      data: encryptDataForTransmission('READY', sessionKey),
+      data: encryptDataForTransmission('READY', encryptionKey),
     })
   );
 };
 
-// TODO: wrap in promise and resolve on ready
-const server = net.createServer((socket) => {
-  socket.on('data', (buffer) => {
-    const stringifiedData = buffer.toString('utf-8');
-    const jsonData = JSON.parse(stringifiedData);
+const server = net.createServer(async (socket) => {
+  const establishSecureConnection = () => {
+    return new Promise((resolve) => {
+      const dataHandler = (buffer) => {
+        const stringifiedData = buffer.toString('utf-8');
+        const jsonData = JSON.parse(stringifiedData);
 
-    const handler = {
-      [Action.HELLO]: () => {
-        const clientRandomHello = jsonData.data;
-        handleClientHello(socket, clientRandomHello);
-      },
-      [Action.PREMASTER_SECRET_EXCHANGE]: () => {
-        const premasterSecret = jsonData.data;
-        handlePremasterSecretExchange(socket, premasterSecret).then(() =>
-          handleServerReady(socket)
-        );
-      },
-      [Action.READY]: () => {
-        const { sessionKey } = sessions.get(socket);
+        const handler = {
+          [Action.HELLO]: () => {
+            const clientRandomHello = jsonData.data;
+            handleClientHello(socket, clientRandomHello);
+          },
+          [Action.PREMASTER_SECRET_EXCHANGE]: () => {
+            const premasterSecret = jsonData.data;
+            handlePremasterSecretExchange(socket, premasterSecret)
+              .then(() => handleServerReady(socket))
+              .catch(() => resolve(false));
+          },
+          [Action.READY]: () => {
+            resolve(true);
+            socket.removeListener('data', dataHandler);
+          },
+        }[jsonData.action];
 
-        console.log({ sessionKey });
+        handler?.();
+      };
 
-        socket.write(
-          JSON.stringify({
-            action: Action.DATA_TRANSFER,
-            data: encryptDataForTransmission('SOME DATA HERE', sessionKey),
-          })
-        );
-      },
-    }[jsonData.action];
+      socket.on('data', dataHandler);
+    });
+  };
 
-    handler?.();
-  });
+  const hasConnected = await establishSecureConnection();
+
+  if (hasConnected) {
+    socket.on('data', (buffer) => {
+      const { sessionKeys } = sessions.get(socket);
+      const [_, decryptionKey] = sessionKeys;
+
+      console.log(decryptRecievedData(buffer.toString(), decryptionKey));
+    });
+  }
 
   socket.on('end', () => {
     console.log('Server closed connection');
@@ -108,5 +124,5 @@ const server = net.createServer((socket) => {
 });
 
 server.listen(SERVER_PORT, () => {
-  console.log('Server listening on port 8000');
+  console.log(`Server listening on port ${SERVER_PORT}`);
 });

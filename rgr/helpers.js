@@ -29,6 +29,10 @@ const decryptRecievedData = (data, decryptionKey) => {
   return decrypted;
 };
 
+export const log = (message) => {
+  console.log(`${new Date().toISOString()} LOG: ${message}`);
+};
+
 export {
   generateRandomString,
   encryptDataForTransmission,

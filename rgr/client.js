@@ -5,8 +5,9 @@ import {
   decryptRecievedData,
   encryptDataForTransmission,
   generateRandomString,
+  log,
 } from './helpers.js';
-import { SERVER_PORT, SYMMETRIC_ALGORITHM } from './constants.js';
+import { SERVER_PORT } from './constants.js';
 
 const sessionData = {};
 
@@ -55,7 +56,7 @@ const handleClientReady = (client) => {
   );
 };
 
-const client = net.createConnection({ port: SERVER_PORT }, () => {
+const client = net.createConnection({ port: SERVER_PORT }, async () => {
   const clientRandomHello = generateRandomString();
 
   client.write(
@@ -66,31 +67,50 @@ const client = net.createConnection({ port: SERVER_PORT }, () => {
   );
 
   Object.assign(sessionData, { clientRandomHello });
-});
 
-client.on('data', (buffer) => {
-  const stringifiedData = buffer.toString('utf-8');
-  const jsonData = JSON.parse(stringifiedData);
+  const establishSecureConnection = () => {
+    return new Promise((resolve) => {
+      const dataListener = (buffer) => {
+        const stringifiedData = buffer.toString('utf-8');
+        const jsonData = JSON.parse(stringifiedData);
 
-  const handler = {
-    [Action.HELLO]: () => {
-      const [serverRandomHello, publicKey] = jsonData.data;
-      handleServerHello(serverRandomHello, publicKey);
-    },
-    [Action.READY]: () => {
-      handleClientReady(client);
-    },
-    [Action.DATA_TRANSFER]: () => {
-      const { premasterSecret, clientRandomHello } = sessionData;
-      console.log({ premasterSecret, clientRandomHello });
+        const handler = {
+          [Action.HELLO]: () => {
+            const [serverRandomHello, publicKey] = jsonData.data;
+            handleServerHello(serverRandomHello, publicKey).catch(() =>
+              resolve(false)
+            );
+          },
+          [Action.READY]: () => {
+            handleClientReady(client);
+            client.removeListener('data', dataListener);
+            resolve(true);
+          },
+        }[jsonData.action];
 
-      console.log(
-        decryptRecievedData(jsonData.data, premasterSecret + clientRandomHello)
-      );
-    },
-  }[jsonData.action];
+        handler?.();
+      };
 
-  handler?.();
+      client.on('data', dataListener);
+    });
+  };
+
+  const hasConnected = await establishSecureConnection();
+
+  if (hasConnected) {
+    log('Secure connection is successfully established!');
+
+    const { premasterSecret, serverRandomHello } = sessionData;
+
+    client.write(
+      encryptDataForTransmission(
+        'SOME DATA FOR TRANSMISSION',
+        premasterSecret + serverRandomHello
+      )
+    );
+  } else {
+    log('Failed to establish secure connection!');
+  }
 });
 
 client.on('end', () => {
